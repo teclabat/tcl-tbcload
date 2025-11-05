@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>tbcload — Tcl bytecode loader · Documentation</title>
+  <style>
+    body{font-family: Inter,Segoe UI,Roboto,Arial,sans-serif;line-height:1.6;color:#202124;padding:24px;max-width:980px;margin:0 auto}
+    header{border-bottom:1px solid #e6e6e6;padding-bottom:12px;margin-bottom:18px}
+    h1{font-size:28px;margin:0}
+    h2{font-size:20px;margin-top:28px}
+    pre{background:#f7f7f7;border:1px solid #eaeaea;padding:12px;overflow:auto}
+    code{font-family:Menlo,Monaco,monospace;background:#fff;padding:2px 4px;border-radius:4px}
+    nav{float:right;text-align:right}
+    .note{background:#fffbe6;border-left:4px solid #ffcf33;padding:10px;margin:12px 0}
+    .warn{background:#fff0f0;border-left:4px solid #ff6b6b;padding:10px;margin:12px 0}
+    footer{border-top:1px solid #e6e6e6;padding-top:12px;margin-top:28px;font-size:90%;color:#666}
+    ul.toc{columns:2;list-style:none;padding-left:0}
+    ul.toc li{margin:6px 0}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>tbcload — Tcl bytecode loader</h1>
+    <p>Quick reference and how‑to for <strong>tbcload</strong>, the Tcl package that loads precompiled Tcl bytecode (.tbc) files.</p>
+    <nav>
+      <strong>Contents</strong>
+      <ul class="toc">
+        <li><a href="#overview">Overview</a></li>
+        <li><a href="#installation">Installation</a></li>
+        <li><a href="#basic-usage">Basic usage</a></li>
+        <li><a href="#examples">Examples</a></li>
+        <li><a href="#compatibility">Compatibility &amp; caveats</a></li>
+        <li><a href="#troubleshooting">Troubleshooting</a></li>
+        <li><a href="#building">Building from source</a></li>
+        <li><a href="#security">Distribution &amp; security notes</a></li>
+        <li><a href="#references">Further reading</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main>
+    <section id="overview">
+      <h2>Overview</h2>
+      <p>
+        <code>tbcload</code> is a small Tcl package whose role is to load and execute precompiled Tcl bytecode files (typically with the <code>.tbc</code> extension). It is commonly distributed as part of Tcl Dev Kit distributions, and several third-party toolchains.
+      </p>
+      <p class="note">Why compile to bytecode? Compiling to <code>.tbc</code> lets you ship Tcl programs without plain source, can reduce parse/initialisation time, and is useful when you want to hide implementation details from end-users.</p>
+    </section>
+
+    <section id="installation">
+      <h2>Installation</h2>
+      <p>There are three common ways to obtain <code>tbcload</code>:</p>
+      <ol>
+        <li><strong>Install via a Tcl distribution</strong> — e.g. many Tcl Dev Kit builds include <code>tbcload</code> as a package.</li>
+        <li><strong>Install from package repositories</strong> — distributions such as Fedora, Debian or third-party repos sometimes package <code>tbcload</code>. Search your distro repositories for <code>tbcload</code>.</li>
+        <li><strong>Build from source / extract from TclPro/TDK</strong> — the source (or binary) historically shipped with TclPro and related projects; you can compile it for your target Tcl ABI if needed.</li>
+      </ol>
+
+      <p class="warn">Note: <code>tbcload</code> contains native components (platform/Tcl-ABI specific). Choose a binary that matches your Tcl major/minor version and platform, or build it for your environment.</p>
+    </section>
+
+    <section id="basic-usage">
+      <h2>Basic usage</h2>
+      <p>Typical workflow uses two packages: the compiler that produces <code>.tbc</code> files (often <code>tclcompiler</code> or tools from TclPro) and <code>tbcload</code> to load them.</p>
+
+      <h3>Compile a script (example)</h3>
+      <pre><code># In a Tcl shell
+package require tclcompiler          ;# or your chosen compiler
+compiler::compile hello.tcl         ;# writes hello.tbc (or similar)
+</code></pre>
+
+      <h3>Load a compiled file</h3>
+      <pre><code># In the runtime where you want to use the bytecode
+package require tbcload
+source hello.tbc
+</code></pre>
+
+      <p>After <code>source hello.tbc</code> the bytecode will be executed exactly as if the original script had been sourced (subject to limitations described in the Compatibility section).</p>
+    </section>
+
+    <section id="examples">
+      <h2>Examples</h2>
+
+      <h3>Hello example</h3>
+      <p>Create <code>hello.tcl</code>:</p>
+      <pre><code># hello.tcl
+proc hello {} {
+    puts "Hello, world"
+}
+hello
+</code></pre>
+
+      <p>Compile and run:</p>
+      <pre><code># compile
+package require tclcompiler
+compiler::compile hello.tcl
+
+# run in a target interpreter
+package require tbcload
+source hello.tbc
+</code></pre>
+
+      <h3>Embedding bytecode inside packaged apps</h3>
+      <p>Some packaging tools (eg. CooKit, tclexecomp or vendor tools) can bundle the tbcload runtime and precompiled .tbc files into a single executable or interpreter image. In that case the embedded runtime must ship a compatible <code>tbcload</code> binary for the target Tcl version.</p>
+    </section>
+
+    <section id="compatibility">
+      <h2>Compatibility &amp; caveats</h2>
+      <ul>
+        <li><strong>Tcl bytecode is not fully forward-compatible:</strong> bytecodes generated for a newer Tcl release may not run on an older interpreter. Always compile for the target Tcl ABI where possible.</li>
+        <li><strong>tbcload variants:</strong> some distributions ship tbcload that is "universal" (detects the running interpreter version and picks the appropriate loader) while other builds are specific to a single Tcl ABI.</li>
+        <li><strong>Native components:</strong> tbcload typically contains platform-specific native code. If you move between platforms, you must provide a suitable tbcload binary for each platform.</li>
+        <li><strong>Source protection is not foolproof:</strong> tools exist that disassemble or inspect <code>.tbc</code> files; bytecode obscures but does not provide cryptographic protection.</li>
+      </ul>
+    </section>
+
+    <section id="troubleshooting">
+      <h2>Troubleshooting</h2>
+      <h3>Common errors</h3>
+      <pre><code>couldn't load file "hello.tbc": invalid or unsupported bytecode
+</code></pre>
+      <p>This usually indicates a bytecode / interpreter mismatch (compile target differs from runtime), or that the file is corrupted. Recompile using a compiler that targets the runtime's Tcl version.</p>
+
+      <h3>"package require tbcload" fails</h3>
+      <ul>
+        <li>Confirm <code>tbcload</code> is installed and on your <code>auto_path</code>.</li>
+        <li>Check that the tbcload shared library (.so/.dll/.dylib) matches the Tcl ABI of your interpreter.</li>
+        <li>On some systems you must install the tbcload package from your distribution or copy the vendor-supplied binary into your <code>lib</code> path.</li>
+      </ul>
+
+      <h3>Debugging tips</h3>
+      <ul>
+        <li>Run <code>info patchlevel</code> and verify the Tcl version used to compile the .tbc file.</li>
+        <li>Use a matched build of tbcload from the same vendor/distribution whenever possible.</li>
+        <li>If you have access to the compiler sources, rebuild the bytecode using an explicitly matching tclcompiler for the target interpreter.</li>
+      </ul>
+    </section>
+
+    <section id="building">
+      <h2>Building tbcload from source</h2>
+      <p>If you need to build tbcload for your system you will typically:</p>
+      <ol>
+        <li>Obtain the sources (for example, from the <a href="https://github.com/tcltk-depot/tbcload">tbcload GitHub repository</a>).</li>
+        <li>Install the Tcl development headers for your target Tcl version (e.g., via your system package manager or compiling Tcl from source).</li>
+        <li>Build with your platform toolchain (for example <code>./configure &amp;&amp; make</code> on UNIX-like systems or using MinGW on Windows).</li>
+        <li>Ensure the resulting shared library (<code>.so</code>, <code>.dll</code>, <code>.dylib</code>) is placed on your <code>auto_path</code> along with the associated <code>pkgIndex.tcl</code>.</li>
+      </ol>
+
+      <h3>Example: build on Linux/UNIX</h3>
+      <pre><code># install Tcl headers (example for Debian/Ubuntu)
+sudo apt install tcl-dev build-essential
+
+# fetch tbcload sources
+git clone https://github.com/tcltk-depot/tbcload.git
+cd tbcload
+
+# configure and build
+./configure --with-tcl=/usr/lib/tcl8.6
+make
+sudo make install
+</code></pre>
+
+      <h3>Example: build on Windows using MinGW</h3>
+      <pre><code># install MinGW and Tcl development headers
+# open MinGW shell
+cd path\to\tbcload
+./configure --with-tcl=C:\Path\To\Tcl
+make
+# copy resulting tbcload.dll to Tcl lib path or adjust auto_path
+</code></pre>
+
+      <p class="note">Binary compatibility is tied to your Tcl version; build against the same version you plan to run.</p>
+    </section>
+
+    <section id="security">
+      <h2>Distribution &amp; security notes</h2>
+      <ul>
+        <li>Bytecode is an obfuscation, not encryption—treat it as low-strength protection.</li>
+        <li>Ship only trusted bytecode to production systems. Consider code signing the packaging layer if available.</li>
+        <li>Keep tbcload and your Tcl runtime up to date when security updates are released for native components.</li>
+      </ul>
+    </section>
+
+    <section id="references">
+      <h2>Further reading</h2>
+      <ul>
+        <li><a href="https://github.com/tcltk-depot/tbcload">tbcload repository on GitHub (tcltk-depot)</a></li>
+        <li>TclPro and tclcompiler documentation (vendor/legacy projects)</li>
+        <li>Community pages and wiki entries about <code>tbcload</code></li>
+      </ul>
+    </section>
+  </main>
+
+  <footer>
+    <p>Generated documentation — concise reference for using <code>tbcload</code>. Adapt examples to your Tcl version and platform.</p>
+  </footer>
+</body>
+</html>
