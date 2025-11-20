@@ -3,6 +3,6 @@
 config.*
 configure
 Makefile
-doc/
 pkgIndex.tcl
 .gse
+.origin
